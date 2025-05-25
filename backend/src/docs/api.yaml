@@ -1,0 +1,1221 @@
+openapi: 3.0.0
+info:
+  title: TodoApp API
+  version: 1.0.0
+  description: |
+    # TodoApp API Documentation
+
+    A comprehensive REST API for managing todos with user authentication, built with Node.js, Express, TypeScript, and MySQL.
+
+    ## Features
+    - 🔐 **JWT Authentication** - Secure user authentication with access and refresh tokens
+    - 🌐 **Google OAuth** - Sign in with Google integration
+    - 📝 **Todo Management** - Full CRUD operations for todos
+    - 🔒 **Password Reset** - Secure password reset via email
+    - 📊 **Filtering** - Filter todos by status (all, completed, upcoming)
+    - 🛡️ **Security** - Rate limiting, CORS, helmet, input sanitization
+    - 📈 **Monitoring** - Prometheus metrics endpoint
+
+    ## Authentication
+    Most endpoints require authentication. Include the JWT token in the Authorization header:
+    ```
+    Authorization: Bearer <your-jwt-token>
+    ```
+
+    ## Rate Limiting
+    API is rate limited to 100 requests per 15 minutes per IP address.
+
+    ## Error Handling
+    All errors follow a consistent format:
+    ```json
+    {
+      "error": "Error message",
+      "details": "Additional error details (optional)"
+    }
+    ```
+  contact:
+    name: TodoApp Support
+    email: support@todoapp.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:3000
+    description: Development server
+  - url: https://api.todoapp.com
+    description: Production server
+
+security:
+  - bearerAuth: []
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained from login or register endpoint
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique user identifier
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        email:
+          type: string
+          format: email
+          description: User email address
+          example: "user@example.com"
+        createdAt:
+          type: string
+          format: date-time
+          description: User creation timestamp
+          example: "2024-01-15T10:30:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          description: User last update timestamp
+          example: "2024-01-15T10:30:00Z"
+      required: [id, email]
+
+    Todo:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique todo identifier
+          example: "123e4567-e89b-12d3-a456-426614174001"
+        name:
+          type: string
+          maxLength: 100
+          description: Todo title/name
+          example: "Complete project documentation"
+        shortDescription:
+          type: string
+          maxLength: 500
+          description: Detailed description of the todo
+          example: "Write comprehensive API documentation including all endpoints, examples, and error codes"
+        dateTime:
+          type: string
+          format: date-time
+          description: Due date and time for the todo
+          example: "2024-01-20T15:30:00Z"
+        isDone:
+          type: boolean
+          description: Whether the todo is completed
+          example: false
+          default: false
+        userId:
+          type: string
+          format: uuid
+          description: ID of the user who owns this todo
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        createdAt:
+          type: string
+          format: date-time
+          description: Todo creation timestamp
+          example: "2024-01-15T10:30:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          description: Todo last update timestamp
+          example: "2024-01-15T10:30:00Z"
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Todo soft deletion timestamp (null if not deleted)
+          example: null
+      required: [id, name, shortDescription, dateTime, isDone, userId]
+
+    RegisterRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          description: User email address
+          example: "newuser@example.com"
+        password:
+          type: string
+          minLength: 6
+          description: User password (minimum 6 characters)
+          example: "securePassword123"
+      required: [email, password]
+
+    LoginRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          description: User email address
+          example: "user@example.com"
+        password:
+          type: string
+          description: User password
+          example: "securePassword123"
+      required: [email, password]
+
+    AuthResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          description: Success message
+          example: "User registered"
+        user:
+          $ref: '#/components/schemas/User'
+        accessToken:
+          type: string
+          description: JWT access token (expires in 15 minutes)
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        refreshToken:
+          type: string
+          description: JWT refresh token (expires in 30 days)
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+      required: [message, user, accessToken, refreshToken]
+
+    RefreshRequest:
+      type: object
+      properties:
+        refreshToken:
+          type: string
+          description: Valid refresh token
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+      required: [refreshToken]
+
+    RefreshResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          description: Success message
+          example: "Tokens refreshed"
+        accessToken:
+          type: string
+          description: New JWT access token
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        refreshToken:
+          type: string
+          description: New JWT refresh token
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+      required: [message, accessToken, refreshToken]
+
+    GoogleAuthRequest:
+      type: object
+      properties:
+        token:
+          type: string
+          description: Google ID token from Google OAuth
+          example: "eyJhbGciOiJSUzI1NiIsImtpZCI6IjdkYzAyYjg1..."
+      required: [token]
+
+    ForgotPasswordRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          description: Email address to send reset link to
+          example: "user@example.com"
+      required: [email]
+
+    ResetPasswordRequest:
+      type: object
+      properties:
+        token:
+          type: string
+          description: Password reset token from email
+          example: "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6"
+        newPassword:
+          type: string
+          minLength: 6
+          description: New password (minimum 6 characters)
+          example: "newSecurePassword123"
+      required: [token, newPassword]
+
+    CreateTodoRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 100
+          description: Todo title/name
+          example: "Complete project documentation"
+        shortDescription:
+          type: string
+          maxLength: 500
+          description: Detailed description of the todo
+          example: "Write comprehensive API documentation including all endpoints, examples, and error codes"
+        dateTime:
+          type: string
+          format: date-time
+          description: Due date and time for the todo
+          example: "2024-01-20T15:30:00Z"
+      required: [name, shortDescription, dateTime]
+
+    UpdateTodoRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 100
+          description: Todo title/name
+          example: "Complete project documentation (Updated)"
+        shortDescription:
+          type: string
+          maxLength: 500
+          description: Detailed description of the todo
+          example: "Write comprehensive API documentation with examples"
+        dateTime:
+          type: string
+          format: date-time
+          description: Due date and time for the todo
+          example: "2024-01-21T15:30:00Z"
+        isDone:
+          type: boolean
+          description: Whether the todo is completed
+          example: true
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+          example: "Invalid credentials"
+        details:
+          type: string
+          description: Additional error details
+          example: "The provided email or password is incorrect"
+      required: [error]
+
+    ValidationError:
+      type: object
+      properties:
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              property:
+                type: string
+                example: "email"
+              constraints:
+                type: object
+                example:
+                  isEmail: "email must be an email"
+          description: Array of validation errors
+      required: [errors]
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "ok"
+        message:
+          type: string
+          example: "Auth service is running"
+      required: [status, message]
+
+    MessageResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          description: Response message
+          example: "Operation completed successfully"
+      required: [message]
+
+tags:
+  - name: Authentication
+    description: User authentication and authorization endpoints
+  - name: Todos
+    description: Todo management endpoints
+  - name: Health
+    description: Health check and monitoring endpoints
+
+paths:
+  /api/auth/health:
+    get:
+      summary: Health check for authentication service
+      description: Returns the health status of the authentication service. Used for monitoring and load balancer health checks.
+      tags: [Health]
+      security: []
+      responses:
+        '200':
+          description: Service is healthy and running
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: "ok"
+                message: "Auth service is running"
+
+  /api/auth/register:
+    post:
+      summary: Register a new user account
+      description: |
+        Creates a new user account with email and password. The password is securely hashed using Argon2.
+        Upon successful registration, returns JWT tokens for immediate authentication.
+        
+        **Security Features:**
+        - Password hashing with Argon2
+        - Email uniqueness validation
+        - Input sanitization and validation
+        - Rate limiting protection
+      tags: [Authentication]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+            examples:
+              valid_registration:
+                summary: Valid registration request
+                value:
+                  email: "newuser@example.com"
+                  password: "securePassword123"
+              minimal_password:
+                summary: Minimum password length
+                value:
+                  email: "user@test.com"
+                  password: "123456"
+      responses:
+        '201':
+          description: User successfully registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+              example:
+                message: "User registered"
+                user:
+                  id: "123e4567-e89b-12d3-a456-426614174000"
+                  email: "newuser@example.com"
+                accessToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                refreshToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        '400':
+          description: Validation error or email already exists
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/ValidationError'
+                  - $ref: '#/components/schemas/Error'
+              examples:
+                validation_error:
+                  summary: Validation errors
+                  value:
+                    errors:
+                      - property: "email"
+                        constraints:
+                          isEmail: "email must be an email"
+                email_exists:
+                  summary: Email already registered
+                  value:
+                    error: "Email already registered"
+        '429':
+          description: Too many requests (rate limit exceeded)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Too many requests, please try again later"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Internal server error"
+
+  /api/auth/login:
+    post:
+      summary: Authenticate user and get tokens
+      description: |
+        Authenticates a user with email and password credentials. Returns JWT tokens for API access.
+        
+        **Token Information:**
+        - Access Token: Valid for 15 minutes, used for API requests
+        - Refresh Token: Valid for 30 days, used to get new access tokens
+        
+        **Security Features:**
+        - Secure password verification with Argon2
+        - Rate limiting protection
+        - JWT token generation
+      tags: [Authentication]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            examples:
+              valid_login:
+                summary: Valid login credentials
+                value:
+                  email: "user@example.com"
+                  password: "securePassword123"
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+              example:
+                message: "Logged in"
+                user:
+                  id: "123e4567-e89b-12d3-a456-426614174000"
+                  email: "user@example.com"
+                accessToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                refreshToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        '400':
+          description: Invalid credentials or validation error
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/ValidationError'
+                  - $ref: '#/components/schemas/Error'
+              examples:
+                invalid_credentials:
+                  summary: Wrong email or password
+                  value:
+                    error: "Invalid credentials"
+                validation_error:
+                  summary: Missing or invalid fields
+                  value:
+                    errors:
+                      - property: "email"
+                        constraints:
+                          isEmail: "email must be an email"
+        '429':
+          description: Too many requests (rate limit exceeded)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/auth/refresh:
+    post:
+      summary: Refresh access token
+      description: |
+        Exchanges a valid refresh token for new access and refresh tokens. Use this endpoint when your access token expires.
+        
+        **Token Lifecycle:**
+        1. Login/Register to get initial tokens
+        2. Use access token for API requests
+        3. When access token expires (15 min), use refresh token to get new tokens
+        4. Repeat until refresh token expires (30 days)
+        
+        **Security Notes:**
+        - Refresh tokens are single-use (invalidated after refresh)
+        - New refresh token is provided with each refresh
+        - Tokens are tied to specific users
+      tags: [Authentication]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+            example:
+              refreshToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+      responses:
+        '200':
+          description: Tokens refreshed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RefreshResponse'
+              example:
+                message: "Tokens refreshed"
+                accessToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                refreshToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        '401':
+          description: Invalid or expired refresh token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                missing_token:
+                  summary: No refresh token provided
+                  value:
+                    error: "Refresh token required"
+                invalid_token:
+                  summary: Invalid or expired token
+                  value:
+                    error: "Invalid refresh token"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/auth/logout:
+    post:
+      summary: Logout user and invalidate tokens
+      description: |
+        Logs out the user by invalidating their refresh token. This prevents the refresh token from being used to generate new access tokens.
+        
+        **Security Notes:**
+        - Invalidates the refresh token on the server
+        - Access tokens remain valid until expiration (15 minutes)
+        - For complete security, client should also discard tokens
+      tags: [Authentication]
+      security: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refreshToken:
+                  type: string
+                  description: Refresh token to invalidate (optional)
+                  example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+            example:
+              refreshToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+      responses:
+        '200':
+          description: Logout successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+              example:
+                message: "Logged out"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/auth/google:
+    post:
+      summary: Authenticate with Google OAuth
+      description: |
+        Authenticates a user using Google OAuth ID token. If the user doesn't exist, creates a new account automatically.
+        
+        **OAuth Flow:**
+        1. Client obtains Google ID token from Google OAuth
+        2. Client sends token to this endpoint
+        3. Server verifies token with Google
+        4. Server creates user if needed or finds existing user
+        5. Server returns JWT tokens for API access
+        
+        **Security Features:**
+        - Google token verification
+        - Automatic account creation for new users
+        - Secure random password generation for OAuth users
+      tags: [Authentication]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GoogleAuthRequest'
+            example:
+              token: "eyJhbGciOiJSUzI1NiIsImtpZCI6IjdkYzAyYjg1..."
+      responses:
+        '200':
+          description: Google authentication successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+              example:
+                message: "Signed in with Google"
+                user:
+                  id: "123e4567-e89b-12d3-a456-426614174000"
+                  email: "user@gmail.com"
+                accessToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                refreshToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        '400':
+          description: Invalid or missing Google token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                missing_token:
+                  summary: No token provided
+                  value:
+                    error: "Token is required"
+                invalid_token:
+                  summary: Invalid Google token
+                  value:
+                    error: "Invalid Google token"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/auth/forgot-password:
+    post:
+      summary: Request password reset
+      description: |
+        Initiates a password reset process by sending a reset link to the user's email address.
+        
+        **Reset Process:**
+        1. User provides email address
+        2. System generates secure reset token
+        3. Reset link sent to email (if email exists)
+        4. User clicks link to reset password
+        
+        **Security Features:**
+        - Secure random token generation
+        - Token expiration (configurable)
+        - No user enumeration (same response for valid/invalid emails)
+        - Rate limiting protection
+      tags: [Authentication]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ForgotPasswordRequest'
+            example:
+              email: "user@example.com"
+      responses:
+        '200':
+          description: Reset email sent (or would be sent if email exists)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+              example:
+                message: "If that email is registered, a reset link has been sent."
+        '400':
+          description: Missing email address
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Email is required"
+        '429':
+          description: Too many requests (rate limit exceeded)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/auth/reset-password:
+    post:
+      summary: Reset password with token
+      description: |
+        Resets a user's password using a valid reset token received via email.
+        
+        **Reset Process:**
+        1. User receives reset token via email
+        2. User provides token and new password
+        3. System validates token and expiration
+        4. Password is updated and token is invalidated
+        
+        **Security Features:**
+        - Token validation and expiration checking
+        - Secure password hashing with Argon2
+        - Single-use tokens (invalidated after use)
+        - Password strength requirements
+      tags: [Authentication]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResetPasswordRequest'
+            example:
+              token: "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6"
+              newPassword: "newSecurePassword123"
+      responses:
+        '200':
+          description: Password reset successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+              example:
+                message: "Password has been reset"
+        '400':
+          description: Invalid or expired token, or missing fields
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                missing_fields:
+                  summary: Missing required fields
+                  value:
+                    error: "Token and new password are required"
+                invalid_token:
+                  summary: Invalid or expired token
+                  value:
+                    error: "Invalid or expired token"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/auth/me:
+    get:
+      summary: Get current user profile
+      description: |
+        Returns the profile information of the currently authenticated user.
+        
+        **Authentication Required:**
+        This endpoint requires a valid JWT access token in the Authorization header.
+        
+        **Usage:**
+        - Verify user authentication status
+        - Get user information for UI display
+        - Validate token before making other API calls
+      tags: [Authentication]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: User profile retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                    description: User unique identifier
+                    example: "123e4567-e89b-12d3-a456-426614174000"
+                  email:
+                    type: string
+                    format: email
+                    description: User email address
+                    example: "user@example.com"
+                required: [id, email]
+              example:
+                id: "123e4567-e89b-12d3-a456-426614174000"
+                email: "user@example.com"
+        '401':
+          description: Unauthorized - Invalid or missing token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                missing_token:
+                  summary: No authorization header
+                  value:
+                    error: "Authorization header required"
+                invalid_token:
+                  summary: Invalid or expired token
+                  value:
+                    error: "Invalid token"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/todos:
+    post:
+      summary: Create a new todo
+      description: |
+        Creates a new todo item for the authenticated user. All input is sanitized to prevent XSS attacks.
+        
+        **Features:**
+        - Input sanitization with sanitize-html
+        - Automatic user association
+        - Validation of required fields
+        - Date/time scheduling support
+        
+        **Authentication Required:**
+        This endpoint requires a valid JWT access token in the Authorization header.
+      tags: [Todos]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTodoRequest'
+            examples:
+              simple_todo:
+                summary: Simple todo example
+                value:
+                  name: "Complete project documentation"
+                  shortDescription: "Write comprehensive API documentation including all endpoints, examples, and error codes"
+                  dateTime: "2024-01-20T15:30:00Z"
+              urgent_todo:
+                summary: Urgent todo with near deadline
+                value:
+                  name: "Fix critical bug"
+                  shortDescription: "Resolve the authentication issue causing login failures"
+                  dateTime: "2024-01-16T09:00:00Z"
+      responses:
+        '201':
+          description: Todo created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Todo'
+              example:
+                id: "123e4567-e89b-12d3-a456-426614174001"
+                name: "Complete project documentation"
+                shortDescription: "Write comprehensive API documentation including all endpoints, examples, and error codes"
+                dateTime: "2024-01-20T15:30:00Z"
+                isDone: false
+                userId: "123e4567-e89b-12d3-a456-426614174000"
+                createdAt: "2024-01-15T10:30:00Z"
+                updatedAt: "2024-01-15T10:30:00Z"
+                deletedAt: null
+        '400':
+          description: Validation error - missing or invalid fields
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+              example:
+                errors:
+                  - property: "name"
+                    constraints:
+                      isNotEmpty: "name should not be empty"
+                  - property: "dateTime"
+                    constraints:
+                      isDate: "dateTime must be a valid date"
+        '401':
+          description: Unauthorized - Invalid or missing token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Authorization header required"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Failed to create todo"
+
+    get:
+      summary: Get user's todos with optional filtering
+      description: |
+        Retrieves all todos for the authenticated user with optional status filtering. Results are ordered by due date (ascending).
+        
+        **Filtering Options:**
+        - No filter: Returns all todos (completed and upcoming)
+        - `status=COMPLETED`: Returns only completed todos (isDone = true)
+        - `status=UPCOMING`: Returns only upcoming/pending todos (isDone = false)
+        
+        **Features:**
+        - User-specific todos only (data isolation)
+        - Ordered by due date (earliest first)
+        - Soft-deleted todos are excluded
+        - Optional status filtering
+        
+        **Authentication Required:**
+        This endpoint requires a valid JWT access token in the Authorization header.
+      tags: [Todos]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [COMPLETED, UPCOMING]
+          required: false
+          description: Filter todos by completion status
+          examples:
+            all:
+              summary: Get all todos
+              value: ""
+            completed:
+              summary: Get completed todos only
+              value: "COMPLETED"
+            upcoming:
+              summary: Get upcoming todos only
+              value: "UPCOMING"
+      responses:
+        '200':
+          description: Todos retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Todo'
+              examples:
+                all_todos:
+                  summary: All todos (mixed status)
+                  value:
+                    - id: "123e4567-e89b-12d3-a456-426614174001"
+                      name: "Complete project documentation"
+                      shortDescription: "Write comprehensive API documentation"
+                      dateTime: "2024-01-20T15:30:00Z"
+                      isDone: false
+                      userId: "123e4567-e89b-12d3-a456-426614174000"
+                      createdAt: "2024-01-15T10:30:00Z"
+                      updatedAt: "2024-01-15T10:30:00Z"
+                      deletedAt: null
+                    - id: "123e4567-e89b-12d3-a456-426614174002"
+                      name: "Review code changes"
+                      shortDescription: "Review and approve pending pull requests"
+                      dateTime: "2024-01-18T14:00:00Z"
+                      isDone: true
+                      userId: "123e4567-e89b-12d3-a456-426614174000"
+                      createdAt: "2024-01-14T09:15:00Z"
+                      updatedAt: "2024-01-17T16:45:00Z"
+                      deletedAt: null
+                completed_only:
+                  summary: Completed todos only
+                  value:
+                    - id: "123e4567-e89b-12d3-a456-426614174002"
+                      name: "Review code changes"
+                      shortDescription: "Review and approve pending pull requests"
+                      dateTime: "2024-01-18T14:00:00Z"
+                      isDone: true
+                      userId: "123e4567-e89b-12d3-a456-426614174000"
+                      createdAt: "2024-01-14T09:15:00Z"
+                      updatedAt: "2024-01-17T16:45:00Z"
+                      deletedAt: null
+                empty_list:
+                  summary: No todos found
+                  value: []
+        '401':
+          description: Unauthorized - Invalid or missing token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Authorization header required"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Failed to retrieve todos"
+
+  /api/todos/{id}:
+    put:
+      summary: Update an existing todo
+      description: |
+        Updates an existing todo item. Only the todo owner can update their todos. All fields are optional - only provided fields will be updated.
+        
+        **Updatable Fields:**
+        - `name`: Todo title/name (sanitized)
+        - `shortDescription`: Detailed description (sanitized)
+        - `dateTime`: Due date and time
+        - `isDone`: Completion status (boolean)
+        
+        **Features:**
+        - Partial updates (only send fields you want to change)
+        - Input sanitization for text fields
+        - User ownership validation
+        - UUID validation for todo ID
+        
+        **Authentication Required:**
+        This endpoint requires a valid JWT access token in the Authorization header.
+      tags: [Todos]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: UUID of the todo to update
+          example: "123e4567-e89b-12d3-a456-426614174001"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTodoRequest'
+            examples:
+              complete_todo:
+                summary: Mark todo as completed
+                value:
+                  isDone: true
+              update_details:
+                summary: Update todo details
+                value:
+                  name: "Complete project documentation (Updated)"
+                  shortDescription: "Write comprehensive API documentation with examples and testing guide"
+                  dateTime: "2024-01-21T15:30:00Z"
+              reschedule:
+                summary: Reschedule todo
+                value:
+                  dateTime: "2024-01-25T10:00:00Z"
+              full_update:
+                summary: Update all fields
+                value:
+                  name: "Finalize project documentation"
+                  shortDescription: "Complete and review all API documentation before release"
+                  dateTime: "2024-01-22T16:00:00Z"
+                  isDone: false
+      responses:
+        '200':
+          description: Todo updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Todo'
+              example:
+                id: "123e4567-e89b-12d3-a456-426614174001"
+                name: "Complete project documentation (Updated)"
+                shortDescription: "Write comprehensive API documentation with examples and testing guide"
+                dateTime: "2024-01-21T15:30:00Z"
+                isDone: false
+                userId: "123e4567-e89b-12d3-a456-426614174000"
+                createdAt: "2024-01-15T10:30:00Z"
+                updatedAt: "2024-01-16T14:20:00Z"
+                deletedAt: null
+        '400':
+          description: Invalid todo ID format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Invalid ID"
+        '401':
+          description: Unauthorized - Invalid or missing token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Authorization header required"
+        '404':
+          description: Todo not found or not owned by user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Todo not found"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Failed to update todo"
+
+    delete:
+      summary: Delete a todo (soft delete)
+      description: |
+        Soft deletes a todo item. The todo is not permanently removed from the database but marked as deleted and will not appear in future queries.
+        
+        **Soft Delete Benefits:**
+        - Data recovery possible if needed
+        - Audit trail preservation
+        - Referential integrity maintained
+        - Compliance with data retention policies
+        
+        **Features:**
+        - User ownership validation
+        - UUID validation for todo ID
+        - Audit logging of deletion
+        - Immediate removal from user's todo list
+        
+        **Authentication Required:**
+        This endpoint requires a valid JWT access token in the Authorization header.
+      tags: [Todos]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: UUID of the todo to delete
+          example: "123e4567-e89b-12d3-a456-426614174001"
+      responses:
+        '204':
+          description: Todo deleted successfully (no content returned)
+        '400':
+          description: Invalid todo ID format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Invalid ID"
+        '401':
+          description: Unauthorized - Invalid or missing token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Authorization header required"
+        '404':
+          description: Todo not found or not owned by user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Todo not found"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Failed to delete todo" 

@@ -1,0 +1,26 @@
+name: Build and Deploy
+on:
+  push:
+    branches: [main]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Setup Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: '18'
+      - name: Install dependencies
+        run: npm ci
+      - name: Lint Backend
+        run: npm --workspace backend run lint
+      - name: Lint Frontend
+        run: npm --workspace frontend run lint
+      - name: Build Backend
+        run: npm --workspace backend run build
+      - name: Build Frontend
+        run: npm --workspace frontend run build
+      - name: Build and Push Docker Images
+        run: |
+          docker-compose build
